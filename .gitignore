@@ -1,0 +1,12 @@
+.venv/
+node_modules/
+*.log
+__pycache__/
+.DS_Store
+Thumbs.db
+
+# Large model files (use Git LFS or download separately)
+# *.onnx  <-- Handled by Git LFS now
+
+# Uploaded user files
+uploads/
