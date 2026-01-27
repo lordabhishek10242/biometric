@@ -151,7 +151,7 @@ export default function Landing() {
         </div>
       </footer>
 
-      <style jsx>{`
+      <style>{`
         .preserve-3d { transform-style: preserve-3d; perspective: 1000px; }
         .animate-spin-slow { animation: spin 8s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
