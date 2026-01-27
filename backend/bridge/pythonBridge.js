@@ -13,8 +13,8 @@ class PythonBridge {
 
     start() {
         const bridgePath = path.join(__dirname, 'service_bridge.py');
-        // Using absolute path to Anaconda python where dependencies are installed
-        this.pythonProcess = spawn('/opt/anaconda3/bin/python3', [bridgePath]);
+        // Using system Python (works cross-platform)
+        this.pythonProcess = spawn('python', [bridgePath]);
 
         this.rl = readline.createInterface({
             input: this.pythonProcess.stdout,

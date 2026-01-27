@@ -2,8 +2,11 @@ import time
 import random
 import numpy as np
 import cv2
+import os
 try:
     import mediapipe as mp
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
     HAS_MEDIAPIPE = True
 except Exception:
     HAS_MEDIAPIPE = False
@@ -69,9 +72,23 @@ def hamming(a, b):
 class UltimateLiveness10:
     def __init__(self):
         if HAS_MEDIAPIPE:
-            self.mesh = mp.solutions.face_mesh.FaceMesh(max_num_faces=1, refine_landmarks=True)
+            # Get model path
+            model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models', 'face_landmarker.task')
+            if not os.path.exists(model_path):
+                print(f"WARNING: FaceLandmarker model not found at {model_path}")
+                self.landmarker = None
+            else:
+                # Create FaceLandmarker options
+                base_options = python.BaseOptions(model_asset_path=model_path)
+                options = vision.FaceLandmarkerOptions(
+                    base_options=base_options,
+                    running_mode=vision.RunningMode.IMAGE,
+                    num_faces=1,
+                    min_face_detection_confidence=0.5
+                )
+                self.landmarker = vision.FaceLandmarker.create_from_options(options)
         else:
-            self.mesh = None
+            self.landmarker = None
         self.start_ts = time.perf_counter()
         self.frames = 0
         
@@ -147,13 +164,16 @@ class UltimateLiveness10:
             }
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        if self.mesh is None: return {'status': 'ERROR', 'message': 'ENGINE_OFFLINE'}
+        if self.landmarker is None: return {'status': 'ERROR', 'message': 'ENGINE_OFFLINE'}
         
-        res = self.mesh.process(rgb)
-        if not res.multi_face_landmarks:
+        # Convert to MediaPipe Image format
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        detection_result = self.landmarker.detect(mp_image)
+        
+        if not detection_result.face_landmarks:
             return {'status': 'NO FACE', 'trust': 0.0, 'metrics': {'command': 'ALIGN_CENTER'}}
         
-        lm = res.multi_face_landmarks[0].landmark
+        lm = detection_result.face_landmarks[0]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         laplacian = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         if self.stage != 1:

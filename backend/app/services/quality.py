@@ -6,9 +6,24 @@ from ..config import BRIGHTNESS_MIN, BRIGHTNESS_MAX, BLUR_LAPLACIAN_MIN
 # where mediapipe is not installed. Prefer MediaPipe -> Haar cascade -> center-crop.
 _mp_face = None
 _haar = None
+import os
+
 try:
     import mediapipe as mp
-    _mp_face = mp.solutions.face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.4)
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+    
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    det_model = os.path.join(base_dir, 'models', 'face_detector.tflite')
+    
+    if os.path.exists(det_model):
+        det_options = vision.FaceDetectorOptions(
+            base_options=python.BaseOptions(model_asset_path=det_model),
+            min_detection_confidence=0.4
+        )
+        _mp_face = vision.FaceDetector.create_from_options(det_options)
+    else:
+        _mp_face = None
 except Exception:
     try:
         cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
@@ -57,12 +72,16 @@ def pre_check_quality(frame_bgr: np.ndarray, is_aligned=False):
     if not is_aligned:
         if _mp_face is not None:
             rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            res = _mp_face.process(rgb)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            res = _mp_face.detect(mp_image)
+            
             if not res.detections:
                 return False, {'ok': False, 'reason': 'NO_FACE', 'message': 'FACE NOT DETECTED', 'metrics': {}}
-            det = max(res.detections, key=lambda d: d.score[0])
-            box = det.location_data.relative_bounding_box
-            x1, y1, bw, bh = int(box.xmin * w), int(box.ymin * h), int(box.width * w), int(box.height * h)
+                
+            det = max(res.detections, key=lambda d: d.categories[0].score)
+            box = det.bounding_box
+            # New API bbox: origin_x, origin_y, width, height
+            x1, y1, bw, bh = box.origin_x, box.origin_y, box.width, box.height
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x1+bw), min(h, y1+bh)
         elif _haar is not None:

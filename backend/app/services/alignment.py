@@ -3,12 +3,43 @@ import numpy as np
 from pathlib import Path
 from ..config import ID_FACE_PADDING
 
+import os
 try:
     import mediapipe as mp
-    mp_face_detector = mp.solutions.face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
-    _mesh_ext = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True)
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+    
+    # Initialize Detectors
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    models_dir = os.path.join(base_dir, 'models')
+    
+    # Face Detector
+    det_model = os.path.join(models_dir, 'face_detector.tflite')
+    if os.path.exists(det_model):
+        det_options = vision.FaceDetectorOptions(
+            base_options=python.BaseOptions(model_asset_path=det_model),
+            min_detection_confidence=0.5
+        )
+        mp_face_detector = vision.FaceDetector.create_from_options(det_options)
+    else:
+        mp_face_detector = None
+        
+    # Face Landmarker (Mesh)
+    land_model = os.path.join(models_dir, 'face_landmarker.task')
+    if os.path.exists(land_model):
+        land_options = vision.FaceLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=land_model),
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1
+        )
+        _mesh_ext = vision.FaceLandmarker.create_from_options(land_options)
+    else:
+        _mesh_ext = None
+        
     HAS_MEDIAPIPE = True
-except Exception:
+except Exception as e:
+    print(f"MediaPipe Init Error: {e}")
     mp = None
     mp_face_detector = None
     _mesh_ext = None
@@ -23,30 +54,37 @@ def extract_face_from_id(image_path: str, output_path: str = "id_face.jpg", padd
     if img is None: return None
     h, w = img.shape[:2]
     
-    if HAS_MEDIAPIPE and _mesh_ext is not None:
+    if HAS_MEDIAPIPE:
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        res = _mesh_ext.process(rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         
-        if res.multi_face_landmarks:
-            # IDENTITY HANDSHAKE: Use the same 112x112 alignment as the Live Tuner
-            lm = res.multi_face_landmarks[0].landmark
-            aligned = align_face_to_112(img, lm)
-            if aligned is not None:
-                cv2.imwrite(output_path, aligned)
-                return output_path
+        # Try Mesh first
+        if _mesh_ext is not None:
+            res = _mesh_ext.detect(mp_image)
+            if res.face_landmarks:
+                # IDENTITY HANDSHAKE: Use the same 112x112 alignment as the Live Tuner
+                lm = res.face_landmarks[0]
+                aligned = align_face_to_112(img, lm)
+                if aligned is not None:
+                    cv2.imwrite(output_path, aligned)
+                    return output_path
         
         # Fallback to detector if mesh fails
-        result = mp_face_detector.process(rgb)
-        if result.detections:
-            detection = max(result.detections, key=lambda d: d.score[0])
-            box = detection.location_data.relative_bounding_box
-            x1, y1, bw, bh = int(box.xmin * w), int(box.ymin * h), int(box.width * w), int(box.height * h)
-            pad_x, pad_y = int(bw * padding_ratio), int(bh * padding_ratio)
-            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
-            x2, y2 = min(w, x1 + bw + 2*pad_x), min(h, y1 + bh + 2*pad_y)
-            face_crop = img[y1:y2, x1:x2]
-            cv2.imwrite(output_path, cv2.resize(face_crop, (112, 112)))
-            return output_path
+        if mp_face_detector is not None:
+            result = mp_face_detector.detect(mp_image)
+            if result.detections:
+                detection = max(result.detections, key=lambda d: d.categories[0].score)
+                box = detection.bounding_box
+                # API returns bbox objects differently: origin_x, origin_y, width, height
+                x1, y1, bw, bh = box.origin_x, box.origin_y, box.width, box.height
+                
+                pad_x, pad_y = int(bw * padding_ratio), int(bh * padding_ratio)
+                x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+                x2, y2 = min(w, x1 + bw + 2*pad_x), min(h, y1 + bh + 2*pad_y)
+                face_crop = img[y1:y2, x1:x2]
+                if face_crop.size > 0:
+                    cv2.imwrite(output_path, cv2.resize(face_crop, (112, 112)))
+                    return output_path
     
     # Final fallback: generic resize
     cv2.imwrite(output_path, cv2.resize(img, (112, 112)))
