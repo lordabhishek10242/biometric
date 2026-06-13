@@ -11,7 +11,7 @@
 > 🏆 **We Won Turing's Playground!** — Organized by Computer Coding Club of MNNIT 🎉
 >
 > **Team · Attention_Is_All_You_Need**
-> 👑 Abhishek Kumar · Roli Rathour · Ritik Raj · Mahee Gupta
+> Abhishek Kumar(Leader) · Roli Rathour · Ritik Raj · Mahee Gupta
 >
 > 📊 [Presentation](https://lnkd.in/g-i7tZ3C) · 🎬 [Demo Video](https://lnkd.in/gH-8QZMa) · ⬡ [GitHub Repo](https://lnkd.in/gUyCmWfN) · [in LinkedIn Post](https://www.linkedin.com/posts/abhishek-kumar-a29449314_machinelearning-deeplearning-computervision-activity-7426159392892403712-TF4W)
 
