@@ -1,6 +1,6 @@
 # Biometric Verification Engine: Static Shadow vs Living Form
 
-**Forensic-Grade Face Recognition for Fraudulent Voting Detection**
+**Forensic-Grade Face Recognition for Fraudulent Voting Detection or KYC system**
 
 ![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
